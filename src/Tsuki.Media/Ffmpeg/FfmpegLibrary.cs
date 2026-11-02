@@ -1,5 +1,4 @@
-// Load the FFmpeg 9 ABI from bundled libraries or the Linux system installation.
-using System.Diagnostics;
+// Load the FFmpeg 9 ABI from bundled libraries or the platform installation (Linux distribution, macOS Homebrew).
 using System.Runtime.InteropServices;
 using FFmpeg.AutoGen;
 
@@ -20,11 +19,12 @@ public sealed record DecoderInfo(string Name, string LongName, int CodecId, stri
 public sealed record FfmpegVersion(string Build, string Avcodec, string Avutil, string License);
 
 /// <summary>
-/// The FFmpeg DLLs are not in the folder the game loads them from (<see cref="FfmpegLibrary.Load"/>). The message names the folder and the files and nothing else: the
-/// game shows it to a player in its own words (review R1). A developer fills <c>third_party/ffmpeg/bin</c> with <c>tools/setup/ffmpeg_dlls.ps1</c> (ARCHITECTURE 0.5).
+/// The FFmpeg native libraries are not in the folder the game loads them from (<see cref="FfmpegLibrary.Load"/>). The message names the folder and the files and nothing
+/// else: the game shows it to a player in its own words (review R1). A developer fills <c>third_party/ffmpeg/bin</c> with <c>tools/setup/ffmpeg_dlls.ps1</c>
+/// (ARCHITECTURE 0.5), installs the FFmpeg 9 libraries of the distribution on Linux, or <c>brew install ffmpeg</c> on macOS.
 /// </summary>
 public sealed class FfmpegMissingException(string folder, IReadOnlyList<string> missingFiles)
-    : FileNotFoundException($"FFmpeg {(OperatingSystem.IsLinux() ? "shared libraries" : "DLLs")} missing from {folder}: {string.Join(", ", missingFiles)}", missingFiles.Count > 0 ? missingFiles[0] : null)
+    : FileNotFoundException($"FFmpeg {(OperatingSystem.IsWindows() ? "DLLs" : "shared libraries")} missing from {folder}: {string.Join(", ", missingFiles)}", missingFiles.Count > 0 ? missingFiles[0] : null)
 {
     /// <summary>The folder searched.</summary>
     public string Folder { get; } = folder;
@@ -39,10 +39,12 @@ public static unsafe class FfmpegLibrary
     /// <summary>The libavcodec DLL of the pinned build (FFmpeg 9.0, ARCHITECTURE 0.5).</summary>
     public const string AvcodecDll = "avcodec-63.dll";
 
-    /// <summary>The platform's library names for the pinned FFmpeg ABI.</summary>
-    public static IReadOnlyList<string> RequiredDlls { get; } = OperatingSystem.IsLinux()
-        ? ["libavutil.so.61", "libswresample.so.7", "libavcodec.so.63", "libavformat.so.63"]
-        : ["avutil-61.dll", "swresample-7.dll", AvcodecDll, "avformat-63.dll"];
+    /// <summary>The platform's library names for the pinned FFmpeg ABI (the file each package installs; the loaded soname may carry a longer version).</summary>
+    public static IReadOnlyList<string> RequiredDlls { get; } = OperatingSystem.IsMacOS()
+        ? ["libavutil.61.dylib", "libswresample.7.dylib", "libavcodec.63.dylib", "libavformat.63.dylib"]
+        : OperatingSystem.IsLinux()
+            ? ["libavutil.so.61", "libswresample.so.7", "libavcodec.so.63", "libavformat.so.63"]
+            : ["avutil-61.dll", "swresample-7.dll", AvcodecDll, "avformat-63.dll"];
 
     /// <summary>The decoders the game needs: voices, SE and BGM (atrac9), movies (h264 + aac).</summary>
     public static IReadOnlyList<string> RequiredDecoders { get; } = ["atrac9", "h264", "aac"];
@@ -66,7 +68,8 @@ public static unsafe class FfmpegLibrary
         {
             if (_root is not null)
             {
-                if (folder is not null && !string.Equals(Path.TrimEndingDirectorySeparator(_root), Path.TrimEndingDirectorySeparator(Path.GetFullPath(folder)), OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
+                string? requested = folder is null ? null : LibraryFolder(Path.GetFullPath(folder)) ?? Path.GetFullPath(folder);
+                if (requested is not null && !string.Equals(Path.TrimEndingDirectorySeparator(_root), Path.TrimEndingDirectorySeparator(requested), OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
                 {
                     throw new InvalidOperationException($"FFmpeg is already loaded from {_root}");
                 }
@@ -74,12 +77,8 @@ public static unsafe class FfmpegLibrary
                 return Version();
             }
 
-            string root = Path.GetFullPath(folder ?? DefaultFolder());
-            var missing = RequiredDlls.Where(d => !File.Exists(Path.Combine(root, d))).ToList();
-            if (missing.Count > 0)
-            {
-                throw new FfmpegMissingException(root, missing);
-            }
+            string search = Path.GetFullPath(folder ?? DefaultFolder());
+            string root = LibraryFolder(search) ?? throw new FfmpegMissingException(search, MissingFiles(search));
 
             ffmpeg.RootPath = root;
             DynamicallyLoadedBindings.Initialize();
@@ -122,20 +121,18 @@ public static unsafe class FfmpegLibrary
     }
 
     /// <summary>
-    /// The files the process has loaded for the FFmpeg DLLs, so a caller can prove that they all come
+    /// The files the process has loaded for the FFmpeg libraries, so a caller can prove that they all come
     /// from <see cref="RootPath"/> (ARCHITECTURE 1.11).
     /// </summary>
     public static IReadOnlyList<string> LoadedModulePaths()
     {
         EnsureLoaded();
-        var names = new HashSet<string>(RequiredDlls, StringComparer.OrdinalIgnoreCase);
-        using var process = Process.GetCurrentProcess();
         var paths = new List<string>();
-        foreach (ProcessModule m in process.Modules)
+        foreach (string image in NativeImages.Enumerate())
         {
-            if (names.Contains(m.ModuleName) || (OperatingSystem.IsLinux() && RequiredDlls.Any(n => m.ModuleName.StartsWith(n + ".", StringComparison.Ordinal))))
+            if (RequiredDlls.Any(n => Matches(image, n)))
             {
-                paths.Add(m.FileName);
+                paths.Add(image);
             }
         }
 
@@ -143,37 +140,101 @@ public static unsafe class FfmpegLibrary
         return paths;
     }
 
+    /// <summary>True when <paramref name="path"/> is the file <paramref name="required"/> names, or a longer soname version of it.</summary>
+    private static bool Matches(string path, string required)
+    {
+        string file = Path.GetFileName(path);
+        if (string.Equals(file, required, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (required.EndsWith(".dylib", StringComparison.OrdinalIgnoreCase))
+        {
+            // libavutil.61.dylib as installed, libavutil.61.1.102.dylib as dyld reports it
+            string stem = required[..^6];
+            return file.StartsWith(stem + ".", StringComparison.Ordinal) && file.EndsWith(".dylib", StringComparison.Ordinal);
+        }
+
+        // libavutil.so.61 as installed, libavutil.so.61.1.102 as the loader maps it
+        return file.StartsWith(required + ".", StringComparison.Ordinal);
+    }
+
+    /// <summary>The folder a player's libraries come from, most specific first: the app folder, then the platform's package locations.</summary>
+    private static IEnumerable<string> Candidates(string app)
+    {
+        yield return app;
+        if (OperatingSystem.IsMacOS())
+        {
+            // a .app keeps the program in Contents/MacOS and anything it ships beside it in Contents/Frameworks
+            yield return Path.GetFullPath(Path.Combine(app, "..", "Frameworks"));
+            if (Environment.GetEnvironmentVariable("HOMEBREW_PREFIX") is { Length: > 0 } prefix)
+            {
+                yield return Path.Combine(prefix, "lib");
+            }
+
+            yield return "/opt/homebrew/lib";     // Homebrew on Apple silicon
+            yield return "/usr/local/lib";        // Homebrew on Intel, and the system's own copies
+        }
+    }
+
+    /// <summary>
+    /// The folder itself when every <see cref="RequiredDlls"/> file is there, else null. The folder is normalised through the files' symlink targets: a package manager
+    /// keeps the real files in a versioned store (<c>/opt/homebrew/Cellar/ffmpeg/9.0.2_1/lib</c>) and links them into the search folder, and the loader reports the store's
+    /// paths, so the root has to be the folder those paths are in for the proof in <see cref="LoadedModulePaths"/> to hold.
+    /// </summary>
+    private static string? LibraryFolder(string folder)
+    {
+        if (!RequiredDlls.All(n => File.Exists(Path.Combine(folder, n))))
+        {
+            return null;
+        }
+
+        var comparison = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+        var directories = RequiredDlls
+            .Select(n => Path.GetDirectoryName(RealFile(Path.Combine(folder, n)))!)
+            .Distinct(comparison)
+            .ToArray();
+        return directories.Length == 1 ? directories[0] : folder;
+    }
+
+    private static string RealFile(string path) =>
+        File.ResolveLinkTarget(path, returnFinalTarget: true) is { Exists: true } target ? target.FullName : path;
+
+    private static List<string> MissingFiles(string folder) =>
+        [.. RequiredDlls.Where(d => !File.Exists(Path.Combine(folder, d)))];
+
     private static string DefaultFolder()
     {
         string app = AppContext.BaseDirectory;
-        if (!OperatingSystem.IsLinux() || RequiredDlls.All(n => File.Exists(Path.Combine(app, n))))
+        foreach (string candidate in Candidates(app))
         {
-            return app;
+            if (LibraryFolder(candidate) is { } folder)
+            {
+                return folder;
+            }
         }
 
         // Let the system loader resolve distribution and custom library paths.
-        if (!NativeLibrary.TryLoad(RequiredDlls[0], out nint handle))
+        if (!OperatingSystem.IsWindows() && NativeLibrary.TryLoad(RequiredDlls[0], out nint handle))
         {
-            throw new FfmpegMissingException("the system library path", RequiredDlls);
-        }
-
-        try
-        {
-            using var process = Process.GetCurrentProcess();
-            foreach (ProcessModule module in process.Modules)
+            try
             {
-                if (module.ModuleName == RequiredDlls[0] || module.ModuleName.StartsWith(RequiredDlls[0] + ".", StringComparison.Ordinal))
+                foreach (string image in NativeImages.Enumerate())
                 {
-                    return Path.GetDirectoryName(module.FileName)!;
+                    if (Matches(image, RequiredDlls[0]) && Path.GetDirectoryName(image) is { } directory)
+                    {
+                        return directory;
+                    }
                 }
             }
-        }
-        finally
-        {
-            NativeLibrary.Free(handle);
+            finally
+            {
+                NativeLibrary.Free(handle);
+            }
         }
 
-        throw new FfmpegMissingException("the system library path", RequiredDlls);
+        throw new FfmpegMissingException(OperatingSystem.IsWindows() ? app : "the system library path", RequiredDlls);
     }
 
     private static void EnsureLoaded()

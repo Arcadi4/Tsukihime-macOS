@@ -192,6 +192,19 @@ public static partial class CpuTopology
     private static int CountPhysicalCores()
     {
         int fallback = Math.Max(1, Environment.ProcessorCount / 2);
+        if (OperatingSystem.IsMacOS())
+        {
+            // hw.perflevel0 counts the performance cores (Apple silicon); an Intel Mac has no perflevel0 and reports hw.physicalcpu
+            int performance = SysctlInt("hw.perflevel0.physicalcpu");
+            if (performance > 0)
+            {
+                return performance;
+            }
+
+            int physical = SysctlInt("hw.physicalcpu");
+            return physical > 0 ? physical : fallback;
+        }
+
         if (!OperatingSystem.IsWindows())
         {
             return fallback;
@@ -255,6 +268,16 @@ public static partial class CpuTopology
 
         return GetSystemTimes(out ulong idle, out ulong kernel, out ulong user) ? (idle, kernel + user) : null;
     }
+
+    /// <summary>macOS: an integer <c>sysctl</c> value, or 0 when the name is unknown (sysctlbyname's errno path).</summary>
+    private static int SysctlInt(string name)
+    {
+        nuint size = sizeof(int);
+        return SysctlByName(name, out int value, ref size, 0, 0) == 0 && size == sizeof(int) ? value : 0;
+    }
+
+    [LibraryImport("libc", EntryPoint = "sysctlbyname", StringMarshalling = StringMarshalling.Utf8, SetLastError = true)]
+    private static partial int SysctlByName(string name, out int value, ref nuint size, nint newValue, nuint newSize);
 
     [LibraryImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]

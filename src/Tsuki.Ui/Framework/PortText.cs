@@ -100,8 +100,8 @@ public enum PortString
     /// <summary>Package K25: the toast / log line for a copy that is not the verified build but runs ({0} the build's description).</summary>
     BuildOtherVersion,
 
-    /// <summary>The Linux FFmpeg 9 shared libraries are missing.</summary>
-    LinuxFfmpegMissing,
+    /// <summary>The FFmpeg 9 shared libraries are missing (Linux and macOS, where they come from the distribution or Homebrew rather than the app folder).</summary>
+    SharedLibraryFfmpegMissing,
 }
 
 /// <summary>The port's own strings in ja, en, zc and zt.</summary>
@@ -270,7 +270,7 @@ public static class PortText
             "不是经过验证的版本: {0}。表已按内容定位。",
             "不是經過驗證的版本: {0}。表已按內容定位。",
         ],
-        // LinuxFfmpegMissing
+        // SharedLibraryFfmpegMissing
         [
             "FFmpeg 9 の共有ライブラリがありません ({0})。FFmpeg 9 の共有ライブラリをインストールするか、Tsukihime と同じフォルダに配置してください。",
             "FFmpeg 9 shared libraries are missing ({0}). Install the FFmpeg 9 shared libraries or place them next to Tsukihime.",

@@ -52,7 +52,7 @@ internal static class Smoke
             report.Check("ffmpeg.load", true, $"FFmpeg {v.Build}, libavcodec {v.Avcodec}, libavutil {v.Avutil}, license \"{v.License}\"");
             IReadOnlyList<string> modules = FfmpegLibrary.LoadedModulePaths();
             bool local = modules.Count > 0 && modules.All(m => InFolder(m, FfmpegLibrary.RootPath));
-            report.Check(OperatingSystem.IsLinux() ? "ffmpeg.library_folder" : "ffmpeg.app_folder", local, $"{modules.Count} FFmpeg modules loaded: {string.Join(", ", modules)}");
+            report.Check(OperatingSystem.IsWindows() ? "ffmpeg.app_folder" : "ffmpeg.library_folder", local, $"{modules.Count} FFmpeg modules loaded: {string.Join(", ", modules)}");
             foreach (string name in FfmpegLibrary.RequiredDecoders)
             {
                 DecoderInfo? d = FfmpegLibrary.FindDecoder(name);
@@ -88,6 +88,12 @@ internal static class Smoke
                 report.Check("shader." + dialect, r.Mismatches == 0,
                     $"compiled + linked + drawn {SmokeShader.Width}x{SmokeShader.Height}; {r.Mismatches} of {r.Pixels.Length} bytes differ from the expected pattern" +
                     (r.Log.Length > 0 ? "; log: " + r.Log.ReplaceLineEndings(" ") : ""));
+            }
+            catch (ShaderCompileException e) when (dialect == GlslDialect.GlslEs300)
+            {
+                // the window is always a desktop core context (GameWindow.Create), and a desktop GL driver is not required to accept "#version 300 es" (macOS does not):
+                // the shipping compositor compiles GLSL 3.30 core, so a driver without ES shaders is not a failure; where it does accept them, the pixels must still agree
+                report.Info("shader." + dialect, "not offered by this desktop core context: " + e.Message.ReplaceLineEndings(" "));
             }
             catch (Exception e)
             {

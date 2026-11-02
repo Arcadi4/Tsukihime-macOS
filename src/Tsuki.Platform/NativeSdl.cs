@@ -19,6 +19,9 @@ internal static class NativeSdl
 #pragma warning restore CA2255
     internal static void Install() => NativeLibrary.SetDllImportResolver(typeof(SDL.SDL3).Assembly, Resolve);
 
+    /// <summary>True on the platforms this resolver knows the SDL file names and folders of.</summary>
+    private static bool IsSupported => OperatingSystem.IsWindows() || OperatingSystem.IsLinux() || OperatingSystem.IsMacOS();
+
     /// <summary>The bundled SDL candidates, most specific first.</summary>
     internal static IEnumerable<string> Candidates(string baseDirectory)
     {
@@ -30,15 +33,21 @@ internal static class NativeSdl
             Architecture.Arm => "arm",
             _ => RuntimeInformation.ProcessArchitecture.ToString().ToLowerInvariant(),
         };
-        string rid = (OperatingSystem.IsLinux() ? "linux-" : "win-") + architecture;
-        string fileName = OperatingSystem.IsLinux() ? "libSDL3.so" : LibraryName + ".dll";
+        string rid = (OperatingSystem.IsMacOS() ? "osx-" : OperatingSystem.IsLinux() ? "linux-" : "win-") + architecture;
+        string fileName = OperatingSystem.IsMacOS() ? "libSDL3.dylib" : OperatingSystem.IsLinux() ? "libSDL3.so" : LibraryName + ".dll";
         yield return Path.Combine(baseDirectory, "runtimes", rid, "native", fileName);
         yield return Path.Combine(baseDirectory, fileName);
+        if (OperatingSystem.IsMacOS())
+        {
+            // a .app keeps the executable in Contents/MacOS and the libraries beside it in Contents/Frameworks (or Resources)
+            yield return Path.GetFullPath(Path.Combine(baseDirectory, "..", "Frameworks", fileName));
+            yield return Path.GetFullPath(Path.Combine(baseDirectory, "..", "Resources", fileName));
+        }
     }
 
     private static nint Resolve(string name, Assembly assembly, DllImportSearchPath? searchPath)
     {
-        if (!string.Equals(name, LibraryName, StringComparison.OrdinalIgnoreCase) || (!OperatingSystem.IsWindows() && !OperatingSystem.IsLinux()))
+        if (!string.Equals(name, LibraryName, StringComparison.OrdinalIgnoreCase) || !IsSupported)
         {
             return 0;
         }
