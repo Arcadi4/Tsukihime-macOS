@@ -27,3 +27,6 @@ third_party/
 
 # Personal Claude Code overrides
 .claude/settings.local.json
+
+# Finder metadata (macOS)
+.DS_Store
