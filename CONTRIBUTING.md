@@ -31,6 +31,10 @@ Linux: see [the native Linux guide](docs/LINUX.md). Build `src/Tsuki.Linux.slnx`
 the Windows WPF launcher and Windows development spikes. The same synthetic, rendering and
 data test programs are included. The build commands below use Windows PowerShell from the repository root.
 
+macOS: see [the macOS guide](docs/MACOS.md). Build `src/Tsuki.macOS.slnx` for the same reason,
+and package with `tools/setup/publish_macos.sh`. The WPF launcher, the Windows spikes and the
+Linux-only solution are not part of that build.
+
 - Windows 10 or 11 (64-bit), the **.NET 10 SDK** (`winget install Microsoft.DotNet.SDK.10`), Git.
 - The FFmpeg 9 LGPL libraries, once: `tools\setup\ffmpeg_dlls.ps1` copies the FFmpeg 9 LGPL DLLs from the
   installed winget package `BtbN.FFmpeg.LGPL.Shared.9.0` into the git-ignored `third_party\ffmpeg\bin` (if the

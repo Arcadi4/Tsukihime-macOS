@@ -1,8 +1,8 @@
 # Publishing
 
-This guide covers source publication and Windows/Linux release archives. Build prerequisites and
+This guide covers source publication and Windows/Linux/macOS release archives. Build prerequisites and
 Python tooling are in [CONTRIBUTING.md](../CONTRIBUTING.md#2-how-to-build).
-Run commands from the repository root, using PowerShell on Windows and Bash on Linux.
+Run commands from the repository root, using PowerShell on Windows and Bash on Linux or macOS.
 
 ## 0. The short version
 
@@ -28,14 +28,15 @@ an instruction to recreate or rewrite the repository for every release.
 ### 1.2 The player download
 
 Keep the full published folder together. The publish definitions are
-`src/Tsuki.Distribution.targets`, `src/Tsuki.Launcher/Tsuki.Launcher.csproj` and
-`tools/setup/publish_linux.sh`.
+`src/Tsuki.Distribution.targets`, `src/Tsuki.Launcher/Tsuki.Launcher.csproj`,
+`tools/setup/publish_linux.sh` and `tools/setup/publish_macos.sh`.
 
 | Package | Required contents |
 |---|---|
-| Both platforms | Player and managed libraries, self-contained .NET runtime, SDL3 and bindings, `README.md`, `CONTRIBUTING.md`, `LICENSE`, `assets/branding/tsukihime-logo.png`, `docs/SETUP_GUIDE.md`, `docs/LINUX.md`, `docs/THIRD_PARTY.md`, and `licenses/` |
+| All platforms | Player and managed libraries, self-contained .NET runtime, SDL3 and bindings, `README.md`, `CONTRIBUTING.md`, `LICENSE`, `assets/branding/tsukihime-logo.png`, `docs/SETUP_GUIDE.md`, the platform guide, `docs/THIRD_PARTY.md`, and `licenses/` |
 | Windows | `Tsukihime.exe`, `TsukihimeLauncher.exe`, their managed assemblies and WPF runtime, `SETUP_GUIDE.txt`, `avutil-61.dll`, `swresample-7.dll`, `avcodec-63.dll`, `avformat-63.dll` |
 | Linux | `Tsukihime`, `Tsukihime.dll`, the native SDL library and root `LINUX.md`. No WPF launcher. FFmpeg and other system dependencies are external unless deliberately packaged with their own notices. |
+| macOS | `Tsukihime.app`: `Contents/MacOS` (program, managed assemblies, .NET runtime, SDL), `Contents/Resources` (icon, `docs/SETUP_GUIDE.md`, `docs/MACOS.md`, and `licenses/` with the port's licence, `THIRD_PARTY.md`, knife and SDL3 notices), `Contents/Info.plist`, and a hardened-runtime signature (ad-hoc or Developer ID). `Contents/Frameworks` holds bundled FFmpeg libraries and their texts when used; otherwise FFmpeg comes from Homebrew. Not sandboxed, not a Mac App Store package. |
 
 The README's logo and local player-document links must resolve inside the archive. Developer links to
 unbundled references use full repository URLs. Do not move essential offline instructions to such a link.
@@ -141,9 +142,11 @@ Keep FFmpeg dynamically replaceable and include:
   does not depend on a disappearing upstream link. Do not claim a source copy is available on request
   unless you can supply it. Do not reuse an old tag or source archive for newer DLLs.
 
-The Linux helper leaves FFmpeg external. If you add FFmpeg libraries, review that exact build's licence,
+The Linux and macOS helpers leave FFmpeg external. If you add FFmpeg libraries, review that exact build's licence,
 dependencies and source requirements and include its matching notices/source. Do not copy Windows
-provenance into a Linux package as if it described those libraries.
+provenance into a Linux or macOS package as if it described those libraries. The Homebrew FFmpeg 9 build the
+macOS guide names is a GPL build loaded at run time; it is not redistributed and must be described as such in
+`docs/THIRD_PARTY.md`.
 
 ### 3.4 SDL3, bindings and .NET
 
@@ -224,6 +227,27 @@ Compare extracted files and executable permissions with the publish folder. Chec
 names and decoders against the actual loaded dependencies, not just an installed `ffmpeg` executable.
 Verify offline documentation and the native folder picker/settings on a supported desktop when available.
 Keep skipped display or retail checks explicit.
+
+### 4.3 macOS
+
+Use [MACOS.md](MACOS.md). The helper builds a self-contained `arm64` bundle and signs it; `TSUKI_RID=osx-x64`
+builds for an Intel Mac. FFmpeg comes from Homebrew unless `third_party/ffmpeg/macos/lib` holds the four
+libraries.
+
+```bash
+export TSUKI_GAME_DIR=/nonexistent
+dotnet build src/Tsuki.macOS.slnx -c Release
+bash tools/setup/publish_macos.sh artifacts/macos-arm64
+artifacts/macos-arm64/Tsukihime.app/Contents/MacOS/Tsukihime --smoke --report /tmp/tsuki-release-smoke.txt
+codesign --verify --deep --strict artifacts/macos-arm64/Tsukihime.app
+ditto -c -k --keepParent artifacts/macos-arm64/Tsukihime.app artifacts/Tsukihime-macos-arm64.zip
+```
+
+Archive the `.app` with `ditto` (it keeps the resource forks and signature that `zip` can lose). Compare the
+extracted tree with the publish folder, check `plutil -lint Contents/Info.plist`, the signature and the
+`--smoke` report, and open the extracted copy once through Finder. `release-check` is a Windows/Linux helper and
+does not inspect a bundle. A build with `TSUKI_NOTARY_PROFILE` set submits to Apple and staples the ticket;
+record whether the release is notarized, because Gatekeeper's treatment differs.
 
 ## 5. Publish the reviewed candidate
 

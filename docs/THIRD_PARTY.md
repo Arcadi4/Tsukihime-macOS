@@ -6,10 +6,11 @@ that the repository or the release download carries, each with the notice its li
 programs in the `licenses\` folder (`FFmpeg-LGPL.txt`, `FFmpeg-GPL-3.0.txt`, `FFmpeg-SOURCE.txt`, `knife-MPL-2.0.txt`, `SDL3-zlib.txt`,
 `LICENSE.txt`, and this file as `THIRD_PARTY.md`); the copies the build takes are tracked in `src/Tsuki.Launcher/Licenses/`.
 
-The Linux publish includes the player, SDL and the .NET runtime with the same notices below.
-It uses external system FFmpeg libraries and does not include FFmpeg or the WPF launcher.
-Its `licenses/dotnet-LICENSE.txt` and `licenses/dotnet-THIRD-PARTY-NOTICES.txt` are copied
-unmodified from the resolved `Microsoft.NETCore.App.Runtime.linux-x64` NuGet package,
+The Linux and macOS publishes include the player, SDL and the .NET runtime with the same notices below.
+They use external system FFmpeg libraries and do not include FFmpeg or the WPF launcher. The macOS publish wraps
+the same files in `Tsukihime.app`, whose `Contents/Resources` carries this file. On both platforms
+`licenses/dotnet-LICENSE.txt` and `licenses/dotnet-THIRD-PARTY-NOTICES.txt` are copied unmodified from the
+resolved `Microsoft.NETCore.App.Runtime.linux-x64` or `Microsoft.NETCore.App.Runtime.osx-arm64` NuGet package,
 so they match the runtime being shipped. No separate download is needed during publishing.
 For runtime 10.0.14, the upstream originals are
 https://github.com/dotnet/runtime/blob/v10.0.14/LICENSE.TXT and
@@ -61,7 +62,13 @@ The game decodes its sound and movies with [FFmpeg](https://ffmpeg.org). Windows
 The exact FFmpeg source is [commit 7adfbe40dcde598f93a6963d2f7b22cd75202ccc](https://github.com/FFmpeg/FFmpeg/commit/7adfbe40dcde598f93a6963d2f7b22cd75202ccc)
 on `release/9.0`, 39 commits after `n9.0.2`, not the release tag itself. The Windows package's `licenses/FFmpeg-SOURCE.txt` gives
 the separate downloads for that source and the dated BtbN build scripts, plus the exact build configuration.
-`Directory.Build.props` copies the four DLLs next to `Tsukihime.exe`. Linux uses external FFmpeg libraries as described above.
+`Directory.Build.props` copies the four DLLs next to `Tsukihime.exe`.
+
+Linux and macOS use external FFmpeg 9 libraries as described above and ship none of them: the player loads
+`libavcodec.so.63`/`.dylib`, `libavformat`, `libavutil` and `libswresample` from the system or from beside the program.
+On macOS the guide's Homebrew `ffmpeg` formula is built with GPL components, so its `avcodec_license()` answers
+"GPL version 3 or later"; it runs as a separate dynamically loaded library and is not redistributed with the app.
+A bundled macOS build must bring its own matching notices and source, as the following paragraphs require of any shipped build.
 
 The build is configured with `--enable-version3`, so the libraries are under the **GNU Lesser General Public License, version 3 or later**: `avcodec_license()` answers
 "LGPL version 3 or later" (`Tsukihime.exe --smoke` prints it) and the package's `LICENSE.txt` is the LGPL v3 text (ARCHITECTURE 0.5). The release ships that text
