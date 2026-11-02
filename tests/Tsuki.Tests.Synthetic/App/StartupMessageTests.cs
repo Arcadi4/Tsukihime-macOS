@@ -23,18 +23,16 @@ public sealed class StartupMessageTests
             var e = new FfmpegMissingException(Path.GetFullPath(dir), FfmpegLibrary.RequiredDlls);
             Assert.Equal(FfmpegLibrary.RequiredDlls, e.MissingFiles);
             Assert.Equal(Path.GetFullPath(dir), e.Folder);
-            string names = OperatingSystem.IsLinux()
-                ? "libavutil.so.61, libswresample.so.7, libavcodec.so.63, libavformat.so.63"
-                : "avutil-61.dll, swresample-7.dll, avcodec-63.dll, avformat-63.dll";
-            Assert.Equal(OperatingSystem.IsLinux() ? "libavutil.so.61" : "avutil-61.dll", e.FileName);
-            Assert.Equal($"FFmpeg {(OperatingSystem.IsLinux() ? "shared libraries" : "DLLs")} missing from {Path.GetFullPath(dir)}: {names}", e.Message);
+            string names = string.Join(", ", FfmpegLibrary.RequiredDlls);
+            Assert.Equal(FfmpegLibrary.RequiredDlls[0], e.FileName);
+            Assert.Equal($"FFmpeg {(OperatingSystem.IsWindows() ? "DLLs" : "shared libraries")} missing from {Path.GetFullPath(dir)}: {names}", e.Message);
             Assert.DoesNotContain("tools/setup", e.Message);
             Assert.DoesNotContain("ARCHITECTURE", e.Message);
 
             Assert.Equal(
-                OperatingSystem.IsLinux()
-                    ? "FFmpeg 9 shared libraries are missing (libavutil.so.61, libswresample.so.7, libavcodec.so.63, libavformat.so.63). Install the FFmpeg 9 shared libraries or place them next to Tsukihime."
-                    : "The FFmpeg libraries are missing next to Tsukihime.exe (avutil-61.dll, swresample-7.dll, avcodec-63.dll, avformat-63.dll). Reinstall the port or copy them back.",
+                OperatingSystem.IsWindows()
+                    ? $"The FFmpeg libraries are missing next to Tsukihime.exe ({names}). Reinstall the port or copy them back."
+                    : $"FFmpeg 9 shared libraries are missing ({names}). Install the FFmpeg 9 shared libraries or place them next to Tsukihime.",
                 GameApp.PlayerMessage(e));
         }
         finally
