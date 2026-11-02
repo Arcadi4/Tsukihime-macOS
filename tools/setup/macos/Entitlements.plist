@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Hardened-runtime entitlements the .NET host needs (tools/setup/publish_macos.sh passes this file to codesign, with or without a
+  Developer ID). allow-jit and allow-unsigned-executable-memory: RyuJIT writes and runs code pages. disable-library-validation: the
+  FFmpeg dylibs are loaded from outside the bundle (Homebrew, or Frameworks) and Apple's library validation would otherwise require
+  every loaded library to carry the same Team ID as the program.
+-->
+<plist version="1.0">
+<dict>
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+</dict>
+</plist>

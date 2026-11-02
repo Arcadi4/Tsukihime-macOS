@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  The macOS bundle definition (tools/setup/publish_macos.sh writes it into Tsukihime.app/Contents after replacing __VERSION__).
+  The executable is a self-contained .NET program; LSMinimumSystemVersion is the .NET 10 runtime's own minimum (LC_BUILD_VERSION minos of libcoreclr.dylib).
+-->
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>CFBundleExecutable</key>
+    <string>Tsukihime</string>
+    <key>CFBundleIconFile</key>
+    <string>tsukihime.icns</string>
+    <key>CFBundleIdentifier</key>
+    <string>io.github.take00c.tsukihime-port</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>Tsukihime</string>
+    <key>CFBundleDisplayName</key>
+    <string>Tsukihime</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>__VERSION__</string>
+    <key>CFBundleVersion</key>
+    <string>__VERSION__</string>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.games</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>12.0</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSHumanReadableCopyright</key>
+    <string>MPL-2.0. An unofficial fan program; TSUKIHIME and its assets belong to their rights holders.</string>
+</dict>
+</plist>
