@@ -1,29 +1,18 @@
-# Local Python environment
-.venv/
+# Swift build output
+.build/
+.swiftpm/
+DerivedData/
+*.xcodeproj
+*.xcworkspace
 
 # Extracted / decoded copyrighted game data: local research only, never share or commit
 samples/
 scratch/
-
-# Third-party reference sources (read-only, not redistributed)
 ref/
 
-# Python and tool caches
-__pycache__/
-*.pyc
-.pytest_cache/
-.mypy_cache/
-
-# .NET build output and IDE files
-bin/
-obj/
-.vs/
-*.user
-artifacts/
-TestResults/
-
-# Native runtime DLLs (FFmpeg) copied in by tools/setup/ffmpeg_dlls.ps1
+# Third-party binary dependencies placed beside the programs
+vendor/
 third_party/
 
-# Personal Claude Code overrides
-.claude/settings.local.json
+# macOS
+.DS_Store
