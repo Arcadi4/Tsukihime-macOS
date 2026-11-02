@@ -102,17 +102,22 @@ public sealed class DirectoryGameFiles : IGameFiles
                 return null;
             }
 
-            string? match = Path.Combine(current, part);
-            if (!File.Exists(match) && !Directory.Exists(match))
+            // The on-disk spelling is read from the directory itself, never from the requested path: on a case-insensitive volume (Windows, default APFS) File.Exists
+            // accepts any casing, so the requested spelling would leak into paths that are compared and cached (and a case-sensitive APFS volume would behave
+            // differently again). The exact spelling wins when the directory holds both.
+            string? match = null;
+            foreach (string entry in Directory.EnumerateFileSystemEntries(current))
             {
-                match = null;
-                foreach (string entry in Directory.EnumerateFileSystemEntries(current))
+                string name = Path.GetFileName(entry);
+                if (string.Equals(name, part, StringComparison.Ordinal))
                 {
-                    if (string.Equals(Path.GetFileName(entry), part, StringComparison.OrdinalIgnoreCase))
-                    {
-                        match = entry;
-                        break;
-                    }
+                    match = entry;
+                    break;
+                }
+
+                if (match is null && string.Equals(name, part, StringComparison.OrdinalIgnoreCase))
+                {
+                    match = entry;
                 }
             }
 
